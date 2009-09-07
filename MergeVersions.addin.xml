@@ -1,0 +1,16 @@
+<Addin namespace="FSpot"
+	id="MergeVersions"
+	name="MergeVersions"
+	version="0.5.0.0"
+	description="Merge multiple versions of the same photo according to their filename"
+	author="Fabian Kneissl"
+	url="http://f-spot.org/Extensions"
+	category="Tools"
+	defaultEnabled="false">
+	<Dependencies>
+		<Addin id="Core" version="0.5.0.0"/>
+	</Dependencies>
+	<Extension path = "/FSpot/Menus/Tools">
+		<Command id = "MergeVersions" _label = "Merge Versions" command_type = "MergeVersionsExtension.MergeVersions" />
+	</Extension>
+</Addin>

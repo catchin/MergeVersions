@@ -1,0 +1,33 @@
+WHAT FOR?
+
+This plugin searches through the existing F-Spot database for orphaned versions
+of photos, i.e. photos that should be versions of other photos but are separate
+photos.
+E.g.:
+2008/11/06/img_2333.jpg
+2008/11/06/img_2333 (Modified).jpg
+appear as two separate pictures, but the "Modified" one should actually be a
+version of the first one.
+
+The MergeVersions plugin searches for pictures named "[name] (Modified).jpg",
+"[name] (Modified (2)).jpg" and so on (up to #4) and merges them as versions
+into a photo called "[name].jpg" if it exists.
+
+
+INSTALLATION
+
+* Be sure to have F-Spot installed.
+* Run "make".
+* Copy MergeVersions.dll to ~/.gnome2/f-spot/addins/MergeVersions.dll
+  (or whatever your F-Spot base directory is)
+
+
+USAGE
+
+In F-Spot: Tools -> Merge Versions
+
+
+TODO
+
+It does however not yet supports "Modified by [your program]" and custom
+version names.
