@@ -11,6 +11,7 @@
 using System;
 using System.IO;
 using System.Collections.Generic;
+using System.Text.RegularExpressions;
 
 using Gtk;
 
@@ -26,73 +27,69 @@ namespace MergeVersionsExtension
 	{
 		public void Run (object o, EventArgs e)
 		{
-			Console.WriteLine ("EXECUTING MERGE VERSIONS EXTENSION");
-
-			if (ResponseType.Ok != HigMessageDialog.RunHigConfirmation (
-				MainWindow.Toplevel.Window,
-				DialogFlags.DestroyWithParent,
-				MessageType.Warning,
-				"Merge Versions",
-				"This operation will merge versions of the same image as one unique image. Version names are guessed using the standard F-Spot naming scheme.\n\nNote: only enabled for photos with a maximum of 4 additional versions and the 'Modified' status (not 'Modified by' or custom version names) right now.",
-				"Do it now"))
-				return;
+			Log.Information ("Executing MergeVersions extension");
 
 			IList<MergeRequest> merge_requests = new List<MergeRequest> ();
 
-			String [] version_names = new String[] {
-					Catalog.GetPluralString ("Modified", "Modified ({0})", 1),
-					String.Format( Catalog.GetPluralString ("Modified", "Modified ({0})", 2), 2),
-					String.Format( Catalog.GetPluralString ("Modified", "Modified ({0})", 3), 3),
-					String.Format( Catalog.GetPluralString ("Modified", "Modified ({0})", 4), 4)
-			};
+			string pat = @"^(.*) \(([A-Za-z0-9_ -]+)\)(\.[A-Za-z0-9]{3,4})$";
+			// Groups		1	   2				  3
+			Regex pattern = new Regex(pat);
 
 			PhotoStore photo_store = FSpot.Core.Database.Photos;
-			foreach ( IBrowsableItem photo in photo_store.Query ( "SELECT * FROM photos " ) ) {
+			foreach ( IBrowsableItem photo in photo_store.Query ( "SELECT * FROM photos " ) )
+			{
 				Photo p = (Photo) photo;
 
-				if (!ImageFile.IsJpeg (p.Name))
-					continue;
+				string version_path = p.VersionUri (Photo.OriginalVersionId).ToString();
+				Match m = pattern.Match(version_path);
 
-				bool not_found = false;
-				string version_path = p.VersionUri (Photo.OriginalVersionId).AbsoluteUri;
+				if (m.Success)
+				{
+					Log.Information ("Modified version found: \"{0}\"", version_path);
 
-				for (int j = 0; j < version_names.Length; j++) {
-					if (p.Name.Contains(version_names[j])) {
-						not_found = true;
-						string original_path = version_path.Replace (" ("+version_names[j]+")", "");
-						original_path = original_path.Replace ("%20("+version_names[j].Replace(" ","%20")+")", "");
-						Uri original_uri = new Uri (original_path);
-						if (version_path.Equals(original_path))
-							continue;
+					string original_path = m.Groups[1].Value + m.Groups[3].Value;
+					string version_name = m.Groups[2].Value;
+					Uri original_uri = new Uri (original_path);
 
-						Photo [] originals = Core.Database.Photos.Query(original_uri);
-						if (originals != null && originals.Length == 1) {
-							Console.WriteLine("Modified version found: {0}", version_path);
-							Console.WriteLine("  => Merging with original: {0}", original_uri);
-							merge_requests.Add (new MergeRequest (originals[0], p, version_names[j]));
-							not_found = false;
-							break;
+					Photo [] originals = Core.Database.Photos.Query(original_uri);
+					if (originals != null && originals.Length == 1)
+					{
+						if (DateTime.Compare(p.Time, originals[0].Time) == 0)
+						{
+							Log.Information ("  => Merging with original: \"{0}\" as \"{1}\"", original_uri, version_name);
+							merge_requests.Add (new MergeRequest (originals[0], p, version_name));
+						}
+						else
+						{
+							Log.Information ("  => Original \"{0}\" does not have same date/time. Not merging.", original_uri);
 						}
 					}
-				}
-
-				if (not_found) {
-					Console.WriteLine("Modified version found: {0}", version_path);
-					Console.WriteLine("  => No original found. Not merging");
+					else
+					{
+						Log.Information ("  => No original found in \"{0}\". Not merging.", original_uri);
+					}
 				}
 			}
 
 			if (merge_requests.Count == 0)
 				return;
 
-			Console.WriteLine();
-			Console.WriteLine("Starting merge process");
-			Console.WriteLine();
+			if (ResponseType.Ok == HigMessageDialog.RunHigConfirmation (
+				MainWindow.Toplevel.Window,
+				DialogFlags.DestroyWithParent,
+				MessageType.Question,
+				"Merge Versions",
+				"This operation will merge versions of the same photo as one unique photo. " + merge_requests.Count + " versions have been found. Merge now?",
+				"OK"))
+			{
+				Log.Information ("Starting merge process");
 
-			foreach (MergeRequest mr in merge_requests)
-				mr.Merge ();
+				foreach (MergeRequest mr in merge_requests)
+					mr.Merge ();
 
-			MainWindow.Toplevel.UpdateQuery ();
+				MainWindow.Toplevel.UpdateQuery ();
+			}
+			Log.Information ("Finished executing MergeVersions extension");
 		}
 
 		class MergeRequest
@@ -110,7 +107,7 @@ namespace MergeVersionsExtension
 
 			public void Merge ()
 			{
-				Console.WriteLine ("Merging {0} and {1}", original.VersionUri (Photo.OriginalVersionId), version.VersionUri (Photo.OriginalVersionId));
+				Log.Information ("Merging \"{0}\" and \"{1}\"", original.VersionUri (Photo.OriginalVersionId), version.VersionUri (Photo.OriginalVersionId));
 				foreach (uint version_id in version.VersionIds) {
 					string name = version.GetVersion (version_id).Name;
 					try {
@@ -120,7 +117,7 @@ namespace MergeVersionsExtension
 						else
 							original.RenameVersion (original.DefaultVersionId, name);
 					} catch (Exception e) {
-						Console.WriteLine (e);
+						Log.Exception (e);
 					}
 				}
 				original.AddTag (version.Tags);
@@ -130,7 +127,7 @@ namespace MergeVersionsExtension
 					try {
 						version.DeleteVersion (version_id, true, true);
 					} catch (Exception e) {
-						Console.WriteLine (e);
+						Log.Exception (e);
 					}
 				}
 				original.Changes.DataChanged = true;

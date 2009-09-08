@@ -1,0 +1,8 @@
+2009-09-08	Fabian Kneißl	fabian@kneissl-web.net
+
+	* Use regular expressions to guess filename
+
+	* Compare date/time of guessed original with version
+
+	* Use F-Spot.Utils.Log instead of Console.WriteLine
+
